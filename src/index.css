@@ -631,14 +631,14 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* 상태바 */
 .status-bar {
-  height: 32px;
+  height: clamp(28px, 2.5vh, 40px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border-subtle);
-  font-size: var(--font-xs);
+  font-size: clamp(10px, 0.9vw, 13px);
   color: var(--text-muted);
 }
 

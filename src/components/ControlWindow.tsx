@@ -3,7 +3,7 @@ import {
   Settings, Monitor, MonitorOff, Maximize, Minimize,
   Play, Pause, Volume2, VolumeX,
   FolderOpen, Grid, List, RefreshCw,
-  SkipBack, SkipForward, Square, Trash2, ChevronUp, Folder,
+  SkipBack, SkipForward, Square, Trash2, ChevronLeft, Folder,
   Plus, X, Edit2, Copy
 } from 'lucide-react'
 import { usePlayerStore, useActivePlaylist, useCurrentPlayingItem } from '../stores/playerStore'
@@ -111,6 +111,52 @@ function ControlWindow() {
     window.electronAPI.onFromPGM(handlePGMMessage)
   }, [setPlayerState, currentIndex, currentTabId])
 
+  // 다음 프리뷰 인덱스 계산 (자동플레이 설정에 따라)
+  const getNextPreviewIndex = useCallback((currentIdx: number, items: typeof playlist) => {
+    const autoPlay = settingsRef.current.autoPlay
+    const loopMode = settingsRef.current.loopMode
+    
+    if (!autoPlay) {
+      // 자동플레이 꺼짐: 단순히 다음 항목
+      return currentIdx + 1 < items.length ? currentIdx + 1 : -1
+    }
+    
+    // 자동플레이 켜짐: 설정에 따라 다음 영상 결정
+    if (loopMode === 'shuffle') {
+      // 랜덤: 현재 제외한 영상 중 랜덤 선택
+      const videoIndices = items
+        .map((item, i) => ({ item, i }))
+        .filter(({ item, i }) => item.type === 'video' && i !== currentIdx)
+        .map(({ i }) => i)
+      
+      if (videoIndices.length > 0) {
+        return videoIndices[Math.floor(Math.random() * videoIndices.length)]
+      }
+      return -1
+    }
+    
+    // 일반/순환: 다음 영상 찾기
+    let nextIndex = -1
+    for (let i = currentIdx + 1; i < items.length; i++) {
+      if (items[i].type === 'video') {
+        nextIndex = i
+        break
+      }
+    }
+    
+    // 순환 모드면 처음부터 다시 찾기
+    if (nextIndex === -1 && loopMode === 'loop') {
+      for (let i = 0; i < currentIdx; i++) {
+        if (items[i].type === 'video') {
+          nextIndex = i
+          break
+        }
+      }
+    }
+    
+    return nextIndex
+  }, [playlist])
+
   // 자동 플레이
   const handleAutoPlayNext = useCallback(() => {
     if (!isPGMOpen || !currentTabId) return
@@ -150,13 +196,16 @@ function ControlWindow() {
     }
     
     if (nextIndex !== -1) {
-      if (currentTabId === activeTabId) {
-        setSelectedIndex(nextIndex)
-      }
       window.electronAPI.sendToPGM({ type: 'PLAY', item: playlistItems[nextIndex] })
       setCurrentIndex(nextIndex)
+      
+      // 다음 프리뷰 자동 선택
+      if (currentTabId === activeTabId) {
+        const nextPreview = getNextPreviewIndex(nextIndex, playlistItems)
+        setSelectedIndex(nextPreview)
+      }
     }
-  }, [isPGMOpen, tabs, currentTabId, currentIndex, activeTabId, setSelectedIndex, setCurrentIndex])
+  }, [isPGMOpen, tabs, currentTabId, currentIndex, activeTabId, setSelectedIndex, setCurrentIndex, getNextPreviewIndex])
 
   // 볼륨 팝업 외부 클릭 감지
   useEffect(() => {
@@ -223,19 +272,19 @@ function ControlWindow() {
     if (result.success && result.files) {
       setFiles(result.files)
       setCurrentPath(folderPath)
-      setBrowserPath(folderPath)
     } else {
       setFiles([])
     }
     setIsLoading(false)
-  }, [setBrowserPath])
+  }, [])
 
   const handleSelectFolder = useCallback(async () => {
     const folderPath = await window.electronAPI.selectFolder()
     if (folderPath) {
+      setBrowserPath(folderPath)
       await loadFolder(folderPath)
     }
-  }, [loadFolder])
+  }, [loadFolder, setBrowserPath])
 
   const handleRefreshFolder = useCallback(async () => {
     if (currentPath) await loadFolder(currentPath)
@@ -379,7 +428,11 @@ function ControlWindow() {
     window.electronAPI.sendToPGM({ type: 'PLAY', item })
     setCurrentTabId(activeTabId)
     setCurrentIndex(selectedIndex)
-  }, [isPGMOpen, selectedIndex, playlist, activeTabId, setCurrentTabId, setCurrentIndex, setPlayerState])
+    
+    // 다음 프리뷰 자동 선택
+    const nextPreview = getNextPreviewIndex(selectedIndex, playlist)
+    setSelectedIndex(nextPreview)
+  }, [isPGMOpen, selectedIndex, playlist, activeTabId, setCurrentTabId, setCurrentIndex, setPlayerState, setSelectedIndex, getNextPreviewIndex])
 
   // 컨트롤
   const handlePlayPause = useCallback(() => {
@@ -696,7 +749,7 @@ function ControlWindow() {
                   />
                 ) : (
                   <>
-                    <span>{tab.name}</span>
+                    <span>{tab.name} ({tab.items.length})</span>
                     {currentTabId === tab.id && <span className="tab-live-badge">LIVE</span>}
                   </>
                 )}
@@ -827,7 +880,7 @@ function ControlWindow() {
             {browserPath && (
               <>
                 <button onClick={handleGoUp} className="browser-btn" disabled={currentPath === browserPath}>
-                  <ChevronUp size={14} />
+                  <ChevronLeft size={14} />
                 </button>
                 <button onClick={handleRefreshFolder} className="browser-btn" disabled={isLoading}>
                   <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
@@ -927,16 +980,9 @@ function ControlWindow() {
       </div>
 
       {/* 상태바 */}
-      <div className="status-bar">
-        <span>
-          {tabs.find(t => t.id === activeTabId)?.name}: {playlist.length}개
-          {settings.autoPlay && ` • 자동재생 ${settings.loopMode === 'loop' ? '(순환)' : settings.loopMode === 'shuffle' ? '(랜덤)' : ''}`}
-        </span>
-        <div className="flex gap-3">
-          <span><span className="shortcut-hint">P</span> PGM</span>
-          <span><span className="shortcut-hint">Space</span> 재생/정지</span>
-          <span><span className="shortcut-hint">F</span> 전체화면</span>
-        </div>
+      <div className="status-bar" style={{ justifyContent: 'flex-end', gap: '8px' }}>
+        <span style={{ color: 'var(--text-primary)' }}>Copyright @ 2026 REVERVE9</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>Special Thanks to Crystal</span>
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Monitor, Upload, Image } from 'lucide-react'
+import { X, Monitor, Upload } from 'lucide-react'
 import { usePlayerStore } from '../stores/playerStore'
 import type { Display } from '../types/electron'
 import type { PGMCommand, Shortcuts } from '../types'
@@ -48,7 +48,7 @@ function SettingsPanel({ onClose }: SettingsPanelProps) {
   useEffect(() => {
     window.electronAPI.getDisplays().then((displayList) => {
       setDisplays(displayList)
-      const pgmDisplay = displayList.findIndex((d: Display) => !d.isPrimary)
+      const pgmDisplay = displayList.findIndex((d: Display) => !d.primary)
       setSelectedDisplay(pgmDisplay >= 0 ? pgmDisplay : 0)
     })
   }, [])
@@ -308,7 +308,7 @@ function SettingsPanel({ onClose }: SettingsPanelProps) {
                     <span style={{ color: 'var(--text-primary)', fontSize: '12px', fontWeight: 500 }}>
                       디스플레이 {index + 1}
                     </span>
-                    {display.isPrimary && (
+                    {display.primary && (
                       <span style={{ fontSize: '9px', padding: '2px 4px', background: 'var(--bg-card)', borderRadius: '3px', color: 'var(--text-muted)' }}>
                         메인
                       </span>
