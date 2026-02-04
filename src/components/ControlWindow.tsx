@@ -560,14 +560,16 @@ function ControlWindow() {
       {/* 헤더 */}
       <header className="header-main">
         <div className="flex items-center gap-3">
+          <img 
+            src="./logo.png"
+            alt="PGM Player"
+          />
           {settings.logoImage && (
             <img 
               src={`file://${settings.logoImage}`} 
-              alt="Logo" 
-              className="h-12 w-auto object-contain"
+              alt="Logo"
             />
           )}
-          <h1 className="header-title">PGM Player</h1>
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1">

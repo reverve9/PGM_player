@@ -78,10 +78,15 @@ body {
 .header-main {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--accent-orange);
-  height: 96px;
+  height: 70px;
   display: flex;
   align-items: center;
   padding: 0 20px;
+}
+
+.header-main img {
+  height: 30px;
+  width: auto;
 }
 
 .header-title {

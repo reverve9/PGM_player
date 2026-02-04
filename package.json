@@ -36,9 +36,15 @@
   "build": {
     "appId": "com.pgm-player.app",
     "productName": "PGM Player",
+    "icon": "public/icon.png",
     "mac": {
       "category": "public.app-category.video",
-      "target": ["dmg"]
+      "target": ["dmg"],
+      "icon": "public/icon.png"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "public/icon.png"
     },
     "files": [
       "dist/**/*",
