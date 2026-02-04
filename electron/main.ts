@@ -10,7 +10,7 @@ let pgmWindow: BrowserWindow | null = null
 let pgmWindowBounds = { x: 0, y: 0, width: 1920, height: 1080 }
 let boundsBeforeFullscreen = { x: 0, y: 0, width: 1920, height: 1080 } // 전체화면 전 bounds 별도 저장
 
-const isDev = process.env.NODE_ENV !== 'production' || !app.isPackaged
+const isDev = !app.isPackaged
 
 function createControlWindow() {
   if (controlWindow && !controlWindow.isDestroyed()) {
