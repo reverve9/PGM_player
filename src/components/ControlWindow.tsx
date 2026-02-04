@@ -561,7 +561,7 @@ function ControlWindow() {
       <header className="header-main">
         <div className="flex items-center gap-3">
           <img 
-            src="./logo.png"
+            src="./logo.png?v=2"
             alt="PGM Player"
           />
           {settings.logoImage && (
