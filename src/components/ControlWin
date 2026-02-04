@@ -1,0 +1,416 @@
+import { useEffect, useCallback, useState } from 'react'
+import { 
+  Settings, Monitor, MonitorOff, Maximize, Minimize,
+  Play, Pause, SkipForward, SkipBack, Square, Volume2,
+  FolderOpen, Grid, List, ChevronRight, ArrowRight
+} from 'lucide-react'
+import { usePlayerStore } from '../stores/playerStore'
+import SettingsPanel from './SettingsPanel'
+
+function ControlWindow() {
+  const [showSettings, setShowSettings] = useState(false)
+  const [isPGMOpen, setIsPGMOpen] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [queueViewMode, setQueueViewMode] = useState<'thumbnail' | 'list'>('thumbnail')
+  const [browserViewMode, setBrowserViewMode] = useState<'thumbnail' | 'list'>('thumbnail')
+  const [rootFolder, setRootFolder] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'all' | 'video' | 'image'>('all')
+  
+  const {
+    playlist,
+    selectedIndex,
+    currentIndex,
+    playerState,
+    setSelectedIndex,
+    setCurrentIndex,
+    setPlayerState,
+  } = usePlayerStore()
+
+  // PGM 윈도우 상태 확인
+  useEffect(() => {
+    const checkPGM = async () => {
+      const isOpen = await window.electronAPI.isPGMOpen()
+      setIsPGMOpen(isOpen)
+    }
+    checkPGM()
+    const interval = setInterval(checkPGM, 500)
+    return () => clearInterval(interval)
+  }, [])
+
+  // PGM 열기/닫기
+  const togglePGMWindow = useCallback(() => {
+    if (isPGMOpen) {
+      setCurrentIndex(-1)
+      setPlayerState({ isPlaying: false, currentTime: 0, duration: 0 })
+      window.electronAPI.closePGMWindow()
+      setIsPGMOpen(false)
+    } else {
+      window.electronAPI.openPGMWindow()
+      setIsPGMOpen(true)
+    }
+  }, [isPGMOpen, setCurrentIndex, setPlayerState])
+
+  // 전체화면 토글
+  const toggleFullscreen = useCallback(() => {
+    window.electronAPI.togglePGMFullscreen()
+  }, [])
+
+  // 시간 포맷
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // 폴더 선택
+  const handleSelectFolder = useCallback(async () => {
+    // TODO: 폴더 선택 다이얼로그 구현
+    console.log('Select folder')
+  }, [])
+
+  return (
+    <div className="h-screen flex flex-col" style={{ background: 'var(--bg-primary)' }}>
+      {/* 헤더 */}
+      <header className="header-dark flex items-center justify-between px-4 py-3">
+        <h1 className="text-base font-semibold">PGM Player</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={togglePGMWindow}
+            className={`p-2 rounded-lg transition-colors ${isPGMOpen ? 'bg-white/20' : 'hover:bg-white/10'}`}
+            title={isPGMOpen ? 'PGM 닫기 (P)' : 'PGM 열기 (P)'}
+          >
+            {isPGMOpen ? (
+              <Monitor size={18} className="text-white" />
+            ) : (
+              <MonitorOff size={18} className="text-white/60" />
+            )}
+          </button>
+          
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            title={playerState.isFullscreen ? '창 모드 (F)' : '전체화면 (F)'}
+          >
+            {playerState.isFullscreen ? (
+              <Minimize size={18} className="text-white" />
+            ) : (
+              <Maximize size={18} className="text-white/60" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            title="설정"
+          >
+            <Settings size={18} className="text-white/60" />
+          </button>
+        </div>
+      </header>
+
+      {/* 설정 패널 */}
+      {showSettings && (
+        <SettingsPanel onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* 메인 컨텐츠 - 2열 레이아웃 */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* ==================== 좌측: 플레이어 영역 ==================== */}
+        <div className="w-1/2 flex flex-col border-r border-pgm-border" style={{ background: 'var(--bg-secondary)' }}>
+          
+          {/* PVW / PGM 미리보기 영역 */}
+          <div className="p-3 border-b border-pgm-border">
+            <div className="flex gap-3">
+              {/* PREVIEW */}
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'var(--success)', color: '#fff' }}>
+                    PREVIEW
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button className="p-1 rounded hover:bg-gray-100">
+                      <SkipBack size={14} style={{ color: 'var(--text-secondary)' }} />
+                    </button>
+                    <button className="p-1 rounded hover:bg-gray-100">
+                      <Play size={14} style={{ color: 'var(--text-secondary)' }} />
+                    </button>
+                    <button className="p-1 rounded hover:bg-gray-100">
+                      <SkipForward size={14} style={{ color: 'var(--text-secondary)' }} />
+                    </button>
+                  </div>
+                </div>
+                <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
+                  <span className="text-xs text-gray-500">선택된 항목 없음</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>00:00</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>00:00</span>
+                </div>
+              </div>
+
+              {/* TAKE 버튼 */}
+              <div className="flex flex-col items-center justify-center">
+                <button 
+                  className="px-3 py-6 rounded-lg font-bold text-white flex flex-col items-center gap-1 transition-colors"
+                  style={{ background: 'var(--danger)' }}
+                  disabled={!isPGMOpen}
+                >
+                  <ArrowRight size={20} />
+                  <span className="text-xs">TAKE</span>
+                </button>
+              </div>
+
+              {/* PGM */}
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>
+                    PGM
+                  </span>
+                  {playerState.isPlaying && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded animate-pulse" style={{ background: 'var(--danger)', color: '#fff' }}>
+                      LIVE
+                    </span>
+                  )}
+                </div>
+                <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
+                  {!isPGMOpen ? (
+                    <span className="text-xs text-gray-500">PGM 윈도우 닫힘</span>
+                  ) : currentIndex >= 0 && playlist[currentIndex] ? (
+                    <span className="text-xs text-gray-500">{playlist[currentIndex].name}</span>
+                  ) : (
+                    <span className="text-xs text-gray-500">대기 중</span>
+                  )}
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatTime(playerState.currentTime)}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatTime(playerState.duration)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 볼륨 */}
+            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-pgm-border">
+              <Volume2 size={14} style={{ color: 'var(--text-secondary)' }} />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-xs w-10 text-right" style={{ color: 'var(--text-secondary)' }}>
+                {Math.round(volume * 100)}%
+              </span>
+            </div>
+          </div>
+
+          {/* 플레이 큐 헤더 */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-pgm-border">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              플레이 큐 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({playlist.length})</span>
+            </h2>
+            <div className="flex items-center gap-1">
+              <button 
+                className={`p-1.5 rounded transition-colors ${queueViewMode === 'thumbnail' ? 'bg-pgm-gray' : 'hover:bg-pgm-gray'}`}
+                onClick={() => setQueueViewMode('thumbnail')}
+                title="썸네일 보기"
+              >
+                <Grid size={14} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+              <button 
+                className={`p-1.5 rounded transition-colors ${queueViewMode === 'list' ? 'bg-pgm-gray' : 'hover:bg-pgm-gray'}`}
+                onClick={() => setQueueViewMode('list')}
+                title="리스트 보기"
+              >
+                <List size={14} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* 플레이 큐 (썸네일/리스트) */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {playlist.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-center" style={{ color: 'var(--text-muted)' }}>
+                <div>
+                  <p className="text-sm">플레이 큐가 비어있습니다</p>
+                  <p className="text-xs mt-1">우측에서 파일을 드래그하세요</p>
+                </div>
+              </div>
+            ) : (
+              <div className={queueViewMode === 'thumbnail' ? 'grid grid-cols-2 gap-2' : 'space-y-1'}>
+                {playlist.map((item, index) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedIndex(index)}
+                    className={`
+                      rounded-lg border cursor-pointer transition-all
+                      ${queueViewMode === 'thumbnail' ? 'aspect-video relative overflow-hidden' : 'p-2 flex items-center gap-2'}
+                      ${currentIndex === index 
+                        ? 'border-pgm-live ring-2 ring-pgm-live/30' 
+                        : selectedIndex === index 
+                          ? 'border-pgm-accent ring-2 ring-pgm-accent/30' 
+                          : 'border-pgm-border bg-white hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    {queueViewMode === 'thumbnail' ? (
+                      <>
+                        <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
+                          <Play size={24} style={{ color: 'var(--text-muted)' }} />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                          <span className="text-xs text-white truncate block">{item.name}</span>
+                        </div>
+                        {currentIndex === index && (
+                          <div className="absolute top-1 right-1">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>LIVE</span>
+                          </div>
+                        )}
+                        {selectedIndex === index && currentIndex !== index && (
+                          <div className="absolute top-1 right-1">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--success)', color: '#fff' }}>PVW</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs w-5" style={{ color: 'var(--text-muted)' }}>{index + 1}</span>
+                        <span className="text-sm truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                          {item.name}
+                        </span>
+                        {currentIndex === index && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>LIVE</span>
+                        )}
+                        {selectedIndex === index && currentIndex !== index && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--success)', color: '#fff' }}>PVW</span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ==================== 우측: 파일 브라우저 ==================== */}
+        <div className="w-1/2 flex flex-col" style={{ background: 'var(--bg-primary)' }}>
+          
+          {/* 폴더 경로 헤더 */}
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-pgm-border" style={{ background: 'var(--bg-secondary)' }}>
+            <button 
+              onClick={handleSelectFolder}
+              className="btn btn-ghost flex items-center gap-2 text-sm"
+            >
+              <FolderOpen size={16} />
+              {rootFolder ? '폴더 변경' : '폴더 선택'}
+            </button>
+            
+            {rootFolder && (
+              <div className="flex items-center gap-1 text-sm flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                <ChevronRight size={14} className="flex-shrink-0" />
+                <span className="truncate">{rootFolder}</span>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button 
+                className={`p-1.5 rounded transition-colors ${browserViewMode === 'thumbnail' ? 'bg-pgm-gray' : 'hover:bg-pgm-gray'}`}
+                onClick={() => setBrowserViewMode('thumbnail')}
+                title="썸네일 보기"
+              >
+                <Grid size={14} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+              <button 
+                className={`p-1.5 rounded transition-colors ${browserViewMode === 'list' ? 'bg-pgm-gray' : 'hover:bg-pgm-gray'}`}
+                onClick={() => setBrowserViewMode('list')}
+                title="리스트 보기"
+              >
+                <List size={14} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* 폴더 탭 */}
+          <div className="flex items-center gap-1 px-4 py-2 border-b border-pgm-border" style={{ background: 'var(--bg-secondary)' }}>
+            {(['all', 'video', 'image'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className="px-3 py-1.5 rounded-lg text-sm transition-colors"
+                style={activeTab === tab 
+                  ? { background: 'var(--navy)', color: '#fff', fontWeight: 500 }
+                  : { color: 'var(--text-secondary)' }
+                }
+              >
+                {tab === 'all' && '전체'}
+                {tab === 'video' && '영상'}
+                {tab === 'image' && '이미지'}
+              </button>
+            ))}
+          </div>
+
+          {/* 파일 그리드 */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {!rootFolder ? (
+              <div className="h-full flex items-center justify-center text-center" style={{ color: 'var(--text-muted)' }}>
+                <div>
+                  <FolderOpen size={48} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">폴더를 선택해주세요</p>
+                  <p className="text-xs mt-1">영상, 이미지 파일을 관리할 수 있습니다</p>
+                </div>
+              </div>
+            ) : browserViewMode === 'thumbnail' ? (
+              <div className="grid grid-cols-4 gap-2">
+                {/* TODO: 실제 파일로 교체 */}
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div
+                    key={i}
+                    className="aspect-video rounded-lg border border-pgm-border cursor-pointer hover:border-pgm-accent hover:shadow-sm transition-all bg-white"
+                    draggable
+                  >
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
+                      <Play size={20} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div
+                    key={i}
+                    className="p-2 rounded-lg border border-pgm-border cursor-pointer hover:border-pgm-accent hover:bg-white transition-all flex items-center gap-3"
+                    draggable
+                  >
+                    <div className="w-16 h-10 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
+                      <Play size={14} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                    <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                      샘플파일_{i}.mp4
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 하단 상태바 */}
+      <div className="flex items-center justify-between px-4 py-2 border-t border-pgm-border" style={{ background: 'var(--bg-secondary)' }}>
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          플레이 큐: {playlist.length}개
+        </span>
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          P: PGM 열기/닫기 | Space: 재생/일시정지 | F: 전체화면
+        </span>
+      </div>
+    </div>
+  )
+}
+
+export default ControlWindow
