@@ -24,13 +24,18 @@ function createControlWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'PGM Player',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#1a1a1a',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false, // file:// 프로토콜 접근 허용
     },
+  })
+
+  controlWindow.once('ready-to-show', () => {
+    controlWindow?.show()
   })
 
   if (isDev) {
