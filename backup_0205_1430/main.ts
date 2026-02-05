@@ -12,16 +12,6 @@ let boundsBeforeFullscreen = { x: 0, y: 0, width: 1920, height: 1080 } // 전체
 
 const isDev = !app.isPackaged
 
-// Chromium 자체 미디어키 처리 끄기 (우리 Swift 헬퍼가 처리)
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
-
-// Chromium 내장 미디어키 처리 비활성화 (우리 Swift 헬퍼가 전담)
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
-
-// Chromium 자체 미디어키 처리 비활성화 (우리 Swift 헬퍼가 처리)
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
-
 function createControlWindow() {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.focus()
@@ -484,6 +474,8 @@ function startMediaKeyHelper() {
       const msg = data.toString().trim()
       if (msg === 'READY') {
         controlWindow?.webContents.send('media-key-status', 'ready')
+      } else if (msg === 'WAITING_ACCESSIBILITY') {
+        controlWindow?.webContents.send('media-key-status', 'need-accessibility')
       } else if (msg.startsWith('ERROR:')) {
         controlWindow?.webContents.send('media-key-status', 'error')
       }

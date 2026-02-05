@@ -90,8 +90,6 @@ function ControlWindow() {
   useEffect(() => {
     pgmHandlerRef.current = (data: any) => {
       if (data.type === 'TIME_UPDATE') {
-        // 정지 상태면 TIME_UPDATE 무시 (프로그레스바 초기화 유지)
-        if (currentIndex < 0) return
         setPlayerState({
           currentTime: data.currentTime,
           duration: data.duration,
@@ -268,25 +266,6 @@ function ControlWindow() {
     }
   }, [tabs, isPGMOpen, currentTabId, currentIndex, activeTabId, selectedIndex, playerState.isPlaying, setCurrentIndex, setSelectedIndex, getNextPreviewIndex])
 
-  // 외부입력 - 정지
-  const handleExternalStop = useCallback((mode: 'media' | 'presenter') => {
-    const targetTab = tabs.find(t => t.inputMode === mode)
-    if (!targetTab || !isPGMOpen) return
-    
-    const isPlayingThisTab = currentTabId === targetTab.id
-    if (isPlayingThisTab) {
-      window.electronAPI.sendToPGM({ type: 'STOP' })
-      setCurrentIndex(-1)
-      setCurrentTabId(null)
-      setPlayerState({ isPlaying: false, currentTime: 0, duration: 0 })
-      // 미니 PGM도 명시적으로 정지
-      if (pgmVideoRef.current) {
-        pgmVideoRef.current.pause()
-        pgmVideoRef.current.currentTime = 0
-      }
-    }
-  }, [tabs, isPGMOpen, currentTabId, setCurrentIndex, setCurrentTabId, setPlayerState])
-
   // 미디어 키 네이티브 헬퍼 관리
   useEffect(() => {
     const hasMediaTab = tabs.some(t => t.inputMode === 'media')
@@ -310,7 +289,6 @@ function ControlWindow() {
         case 'MediaPlayPause': handleExternalPlay('media'); break
         case 'MediaNextTrack': handleExternalNext('media'); break
         case 'MediaPreviousTrack': handleExternalPrev('media'); break
-        case 'MediaStop': handleExternalStop('media'); break
       }
     }
   })
@@ -607,11 +585,6 @@ function ControlWindow() {
     setCurrentIndex(-1)
     setCurrentTabId(null)
     setPlayerState({ isPlaying: false, currentTime: 0, duration: 0 })
-    // 미니 PGM도 명시적으로 정지
-    if (pgmVideoRef.current) {
-      pgmVideoRef.current.pause()
-      pgmVideoRef.current.currentTime = 0
-    }
   }, [isPGMOpen, setCurrentIndex, setCurrentTabId, setPlayerState])
 
   const handlePrev = useCallback(() => {

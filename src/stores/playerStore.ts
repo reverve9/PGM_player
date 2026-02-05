@@ -29,6 +29,7 @@ const createDefaultTab = (): PlayQueueTab => ({
   id: crypto.randomUUID(),
   name: '플레이큐 1',
   items: [],
+  inputMode: 'none',
 })
 
 interface PlayerStore {
@@ -60,6 +61,7 @@ interface PlayerStore {
   renameTab: (tabId: string, name: string) => void
   duplicateTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
+  setTabInputMode: (tabId: string, mode: 'none' | 'media' | 'presenter') => void
   
   // Actions - Playlist (현재 활성 탭에 대해)
   addItems: (items: PlaylistItem[]) => void
@@ -123,6 +125,7 @@ export const usePlayerStore = create<PlayerStore>()(
             id: crypto.randomUUID(),
             name: `플레이큐 ${state.tabs.length + 1}`,
             items: [],
+            inputMode: 'none',
           }
           return {
             tabs: [...state.tabs, newTab],
@@ -162,6 +165,7 @@ export const usePlayerStore = create<PlayerStore>()(
               ...item,
               id: crypto.randomUUID(), // 새 ID 부여
             })),
+            inputMode: sourceTab.inputMode,
           }
           
           // 원본 탭 다음에 삽입
@@ -180,6 +184,15 @@ export const usePlayerStore = create<PlayerStore>()(
           activeTabId: tabId,
           selectedIndex: -1,
         }),
+        
+        setTabInputMode: (tabId, mode) => set((state) => ({
+          // 같은 모드를 사용하는 다른 탭은 none으로 초기화 (하나만 활성)
+          tabs: state.tabs.map(t => {
+            if (t.id === tabId) return { ...t, inputMode: mode }
+            if (mode !== 'none' && t.inputMode === mode) return { ...t, inputMode: 'none' as const }
+            return t
+          }),
+        })),
         
         // Playlist Actions (for active tab)
         addItems: (items) => set((state) => ({
@@ -276,8 +289,10 @@ export const usePlayerStore = create<PlayerStore>()(
           settings?: Partial<Settings> 
         }
         
-        // 탭이 없으면 기본 탭 생성
-        const tabs = persisted?.tabs?.length ? persisted.tabs : [createDefaultTab()]
+        // 탭이 없으면 기본 탭 생성, inputMode 기본값 보장
+        const tabs = persisted?.tabs?.length 
+          ? persisted.tabs.map(t => ({ ...t, inputMode: t.inputMode || 'none' as const }))
+          : [createDefaultTab()]
         const activeTabId = persisted?.activeTabId && tabs.some(t => t.id === persisted.activeTabId)
           ? persisted.activeTabId
           : tabs[0].id

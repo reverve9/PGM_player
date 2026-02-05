@@ -43,6 +43,10 @@ export interface ElectronAPI {
   setPGMFullscreen: (fullscreen: boolean) => void
   resizePGMWindow: (width: number, height: number) => void
   extractStreamUrl: (url: string) => Promise<{ success: boolean; url?: string; title?: string; error?: string }>
+  startMediaKeyHelper: () => void
+  stopMediaKeyHelper: () => void
+  onMediaKey: (callback: (key: string) => void) => void
+  onMediaKeyStatus: (callback: (status: string) => void) => void
 }
 
 declare global {
