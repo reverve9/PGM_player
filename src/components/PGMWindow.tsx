@@ -323,10 +323,14 @@ function PGMWindow() {
         {/* 이미지 */}
         {isImageType(currentItem) && currentItem && (
           <img
-            src={`file://${currentItem.path}`}
-            alt={currentItem.name}
-            className="max-w-full max-h-full object-contain"
-          />
+  src={`file://${currentItem.path}`}
+  alt={currentItem.name}
+  className="w-full h-full object-contain"
+  onLoad={(e) => {
+    const img = e.currentTarget
+    window.electronAPI.resizePGMWindow(img.naturalWidth, img.naturalHeight)
+  }}
+/>
         )}
 
         {/* 대기 화면 */}
