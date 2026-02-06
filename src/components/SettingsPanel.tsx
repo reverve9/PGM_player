@@ -34,6 +34,8 @@ const shortcutLabels: Record<keyof Shortcuts, string> = {
   stop: '정지',
   fullscreen: '전체화면',
   togglePGM: 'PGM 열기/닫기',
+  moveUp: '큐 위로',
+  moveDown: '큐 아래로',
   delete: '선택 삭제',
 }
 

@@ -19,7 +19,7 @@ function PGMWindow() {
   }, [currentItem])
 
   // 비디오/이미지 타입 체크
-  const isVideoType = (item: PlaylistItem | null) => item?.type === 'file' || item?.type === 'video'
+  const isVideoType = (item: PlaylistItem | null) => item?.type === 'video'
   const isImageType = (item: PlaylistItem | null) => item?.type === 'image'
 
   // Control 윈도우로 메시지 전송
