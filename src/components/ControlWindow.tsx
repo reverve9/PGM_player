@@ -1110,17 +1110,20 @@ function ControlWindow() {
       {/* 헤더 */}
       <header className="header-main">
         <div className="flex items-center gap-3">
-          <img 
-            src="./logo.png?v=2"
-            alt="PGM Player"
-          />
-          {settings.logoImage && (
-            <img 
-              src={`file://${settings.logoImage}`} 
-              alt="Logo"
-            />
-          )}
-        </div>
+  <div className="flex items-end gap-3">
+  <img 
+    src="./logo.png"
+    alt="PGM Player"
+  />
+  <span style={{ fontSize: '15px', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.5, lineHeight: 0.8 }}>v1.0</span>
+</div>
+  {settings.logoImage && (
+    <img 
+      src={`file://${settings.logoImage}`} 
+      alt="Logo"
+    />
+  )}
+</div>
         <div className="flex-1" />
         <div className="flex items-center gap-1">
           <button
