@@ -1,25 +1,18 @@
 import { app, BrowserWindow, ipcMain, screen, dialog } from 'electron'
 import path from 'path'
-import { exec, spawn, ChildProcess } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { spawn, ChildProcess } from 'child_process'
 
 let controlWindow: BrowserWindow | null = null
 let pgmWindow: BrowserWindow | null = null
+const tabWindows = new Map<string, BrowserWindow>()  // tabId → BrowserWindow
 let pgmWindowBounds = { x: 0, y: 0, width: 1920, height: 1080 }
 let boundsBeforeFullscreen = { x: 0, y: 0, width: 1920, height: 1080 } // 전체화면 전 bounds 별도 저장
+let presenterLocked = false  // 프리젠터 잠금 (true면 PageDown/PageUp 차단)
+let presenterKeys = { next: 'ArrowRight', prev: 'ArrowLeft' }  // ← 추가
 
 const isDev = !app.isPackaged
 
-// Chromium 자체 미디어키 처리 끄기 (우리 Swift 헬퍼가 처리)
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
-
-// Chromium 내장 미디어키 처리 비활성화 (우리 Swift 헬퍼가 전담)
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
-
-// Chromium 자체 미디어키 처리 비활성화 (우리 Swift 헬퍼가 처리)
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
+// Chromium 내장 미디어키 처리 비활성화 (Swift 헬퍼가 전담)
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
 
 function createControlWindow() {
@@ -46,6 +39,14 @@ function createControlWindow() {
 
   controlWindow.once('ready-to-show', () => {
     controlWindow?.show()
+  })
+
+  // 프리젠터 잠금 시 PageDown/PageUp을 renderer에 전달하지 않음
+  controlWindow.webContents.on('before-input-event', (_event, input) => {
+    // 프리젠터 잠금 시 등록된 키만 차단
+    if (presenterLocked && (input.key === presenterKeys.next || input.key === presenterKeys.prev)) {
+      _event.preventDefault()
+    }
   })
 
   if (isDev) {
@@ -120,6 +121,52 @@ function createPGMWindow() {
     // Control 윈도우에 PGM 닫힘 알림
     if (controlWindow && !controlWindow.isDestroyed()) {
       controlWindow.webContents.send('pgm-closed')
+    }
+  })
+}
+
+function createTabWindow(tabId: string, tabName: string) {
+  const existing = tabWindows.get(tabId)
+  if (existing && !existing.isDestroyed()) {
+    existing.focus()
+    return
+  }
+
+  const controlBounds = controlWindow?.getBounds()
+  const offset = tabWindows.size * 30  // 창 겹침 방지 오프셋
+
+  const win = new BrowserWindow({
+    x: controlBounds ? controlBounds.x + controlBounds.width + 10 + offset : undefined,
+    y: controlBounds ? controlBounds.y + offset : undefined,
+    width: 400,
+    height: 600,
+    minWidth: 300,
+    minHeight: 350,
+    title: tabName || 'Tab',
+    backgroundColor: '#1a1a1a',
+    frame: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: false,
+    },
+  })
+
+  if (isDev) {
+    win.loadURL(`http://localhost:5173?window=tab&tabId=${tabId}`)
+  } else {
+    win.loadFile(path.join(__dirname, '../dist/index.html'), {
+      query: { window: 'tab', tabId }
+    })
+  }
+
+  tabWindows.set(tabId, win)
+
+  win.on('closed', () => {
+    tabWindows.delete(tabId)
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      controlWindow.webContents.send('tab-docked', tabId)
     }
   })
 }
@@ -303,26 +350,47 @@ ipcMain.on('move-pgm-to-display', (_event, displayIndex: number) => {
   }
 })
 
-// YouTube 등 URL에서 실제 스트림 URL 추출
-ipcMain.handle('extract-stream-url', async (_event, url: string) => {
-  try {
-    // yt-dlp로 best 포맷 URL 추출
-    const { stdout } = await execAsync(`yt-dlp -f "best[height<=1080]" -g --no-warnings "${url}"`)
-    const streamUrl = stdout.trim().split('\n')[0]
-    
-    // 제목도 가져오기
-    const { stdout: titleOut } = await execAsync(`yt-dlp --get-title --no-warnings "${url}"`)
-    const title = titleOut.trim()
-    
-    if (streamUrl) {
-      return { success: true, url: streamUrl, title }
+
+// === 탭 윈도우 (개별 탭 분리) ===
+ipcMain.on('open-tab-window', (_event, tabId: string, tabName: string) => createTabWindow(tabId, tabName))
+
+ipcMain.on('close-tab-window', (_event, tabId: string) => {
+  const win = tabWindows.get(tabId)
+  if (win && !win.isDestroyed()) {
+    win.close()
+  }
+  tabWindows.delete(tabId)
+})
+
+ipcMain.handle('is-tab-open', (_event, tabId: string) => {
+  const win = tabWindows.get(tabId)
+  return win !== null && win !== undefined && !win.isDestroyed()
+})
+
+ipcMain.handle('toggle-tab-always-on-top', (_event, tabId: string) => {
+  const win = tabWindows.get(tabId)
+  if (!win || win.isDestroyed()) return false
+  const next = !win.isAlwaysOnTop()
+  win.setAlwaysOnTop(next, 'floating')
+  return next
+})
+
+// Control → 탭 윈도우 상태 동기화 (모든 열린 탭 윈도우에 broadcast)
+ipcMain.on('tab-sync-state', (_event, state) => {
+  for (const [, win] of tabWindows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('tab-state-update', state)
     }
-    
-    return { success: false, error: 'No stream URL found' }
-  } catch (error: any) {
-    return { success: false, error: error.message }
   }
 })
+
+// 탭 윈도우 → Control 액션 전달
+ipcMain.on('tab-action', (_event, action) => {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('tab-action', action)
+  }
+})
+
 
 // 폴더 선택 다이얼로그
 ipcMain.handle('select-folder', async () => {
@@ -338,9 +406,10 @@ ipcMain.handle('select-folder', async () => {
   return result.filePaths[0]
 })
 
-// 지원하는 확장자
+/// 지원하는 확장자
 const videoExts = ['.mp4', '.webm', '.mov', '.avi', '.mkv']
 const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+const audioExts = ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a']
 
 // 폴더 내 파일/폴더 목록 가져오기
 ipcMain.handle('read-folder', async (_event, folderPath: string) => {
@@ -368,12 +437,14 @@ ipcMain.handle('read-folder', async (_event, folderPath: string) => {
         })
       } else if (entry.isFile()) {
         const ext = pathModule.extname(entry.name).toLowerCase()
-        let type: 'video' | 'image' | null = null
+        let type: 'video' | 'image' | 'audio' | null = null
         
         if (videoExts.includes(ext)) {
           type = 'video'
         } else if (imageExts.includes(ext)) {
           type = 'image'
+        } else if (audioExts.includes(ext)) {
+          type = 'audio'
         }
         
         if (type) {
@@ -422,12 +493,14 @@ ipcMain.handle('read-folder-contents', async (_event, folderPath: string) => {
           await scanFolder(fullPath) // 재귀
         } else if (entry.isFile()) {
           const ext = pathModule.extname(entry.name).toLowerCase()
-          let type: 'video' | 'image' | null = null
+          let type: 'video' | 'image' | 'audio' | null = null
           
           if (videoExts.includes(ext)) {
             type = 'video'
           } else if (imageExts.includes(ext)) {
             type = 'image'
+          } else if (audioExts.includes(ext)) {
+            type = 'audio'
           }
           
           if (type) {
@@ -518,6 +591,17 @@ ipcMain.on('start-media-key-helper', () => {
 ipcMain.on('stop-media-key-helper', () => {
   stopMediaKeyHelper()
 })
+
+// 프리젠터 잠금 상태 변경
+ipcMain.on('set-presenter-locked', (_event, locked: boolean) => {
+  presenterLocked = locked
+})
+
+// 프리젠터 키 변경
+ipcMain.on('set-presenter-keys', (_event, keys: { next: string; prev: string }) => {
+  presenterKeys = keys
+})
+
 
 // 앱 종료 시 헬퍼도 종료
 app.on('will-quit', () => {

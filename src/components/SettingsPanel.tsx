@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { X, Monitor, Upload } from 'lucide-react'
 import { usePlayerStore } from '../stores/playerStore'
 import type { Display } from '../types/electron'
-import type { PGMCommand, Shortcuts } from '../types'
+import type { PGMCommand, Shortcuts, PresenterKeys } from '../types'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -34,8 +34,6 @@ const shortcutLabels: Record<keyof Shortcuts, string> = {
   stop: '정지',
   fullscreen: '전체화면',
   togglePGM: 'PGM 열기/닫기',
-  moveUp: '위로 이동',
-  moveDown: '아래로 이동',
   delete: '선택 삭제',
 }
 
@@ -44,6 +42,7 @@ function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [displays, setDisplays] = useState<Display[]>([])
   const [selectedDisplay, setSelectedDisplay] = useState(0)
   const [editingKey, setEditingKey] = useState<keyof Shortcuts | null>(null)
+  const [editingPresenterKey, setEditingPresenterKey] = useState<keyof PresenterKeys | null>(null)
 
   useEffect(() => {
     window.electronAPI.getDisplays().then((displayList) => {
@@ -92,44 +91,42 @@ function SettingsPanel({ onClose }: SettingsPanelProps) {
     window.electronAPI.sendToPGM(command)
   }, [updateSettings])
 
-  const handleSelectLogoImage = useCallback(async () => {
-    const imagePath = await window.electronAPI.selectImage()
-    if (imagePath) {
-      updateSettings({ logoImage: imagePath })
-    }
-  }, [updateSettings])
-
-  const handleClearLogoImage = useCallback(() => {
-    updateSettings({ logoImage: null })
-  }, [updateSettings])
 
   const handleShortcutEdit = (key: keyof Shortcuts) => {
     setEditingKey(key)
+    setEditingPresenterKey(null)
   }
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!editingKey) return
-    
     e.preventDefault()
     e.stopPropagation()
     
     const code = e.code
     if (code === 'Escape') {
       setEditingKey(null)
+      setEditingPresenterKey(null)
       return
     }
     
-    const newShortcuts = { ...settings.shortcuts, [editingKey]: code }
-    updateSettings({ shortcuts: newShortcuts })
-    setEditingKey(null)
-  }, [editingKey, settings.shortcuts, updateSettings])
+    if (editingKey) {
+      const newShortcuts = { ...settings.shortcuts, [editingKey]: code }
+      updateSettings({ shortcuts: newShortcuts })
+      setEditingKey(null)
+    } else if (editingPresenterKey) {
+      const newPresenterKeys = { ...settings.presenterKeys, [editingPresenterKey]: code }
+      updateSettings({ presenterKeys: newPresenterKeys })
+      // main process에 새 키 알림
+      window.electronAPI.setPresenterKeys(newPresenterKeys)
+      setEditingPresenterKey(null)
+    }
+  }, [editingKey, editingPresenterKey, settings.shortcuts, settings.presenterKeys, updateSettings])
 
   useEffect(() => {
-    if (editingKey) {
+    if (editingKey || editingPresenterKey) {
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [editingKey, handleKeyDown])
+  }, [editingKey, editingPresenterKey, handleKeyDown])
 
   const handleDisplayChange = (displayIndex: number) => {
     setSelectedDisplay(displayIndex)
@@ -252,41 +249,6 @@ function SettingsPanel({ onClose }: SettingsPanelProps) {
             )}
           </section>
 
-          {/* 로고 설정 */}
-          <section className="settings-section">
-            <h3 className="settings-section-title">로고</h3>
-            
-            <div className="settings-row">
-              <div>
-                <p className="settings-label">헤더 로고</p>
-                <p className="settings-desc">헤더에 표시될 로고 이미지</p>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={handleSelectLogoImage} className="browser-btn">
-                  <Upload size={14} />
-                  <span>선택</span>
-                </button>
-                {settings.logoImage && (
-                  <button onClick={handleClearLogoImage} className="browser-btn">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            {settings.logoImage && (
-              <div style={{ marginTop: '8px', padding: '8px', background: 'var(--bg-elevated)', borderRadius: '6px' }}>
-                <div className="flex items-center gap-3">
-                  <div style={{ width: '64px', height: '36px', background: '#000', borderRadius: '4px', overflow: 'hidden' }}>
-                    <img src={`file://${settings.logoImage}`} alt="" className="w-full h-full object-contain" />
-                  </div>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }} className="truncate flex-1">
-                    {settings.logoImage.split('/').pop()}
-                  </span>
-                </div>
-              </div>
-            )}
-          </section>
 
           {/* 디스플레이 설정 */}
           <section className="settings-section">
@@ -319,6 +281,47 @@ function SettingsPanel({ onClose }: SettingsPanelProps) {
                   </p>
                 </button>
               ))}
+            </div>
+          </section>
+
+          {/* 프리젠터 키 매핑 */}
+          <section className="settings-section">
+            <h3 className="settings-section-title">프리젠터</h3>
+            <p className="settings-desc" style={{ marginBottom: '12px' }}>프리젠터 리모컨의 버튼을 등록합니다. 버튼을 클릭 후 리모컨을 눌러주세요.</p>
+            
+            <div className="space-y-1">
+              <div className="settings-row" style={{ padding: '6px 0' }}>
+                <span className="settings-label" style={{ fontSize: '12px' }}>다음 (Next)</span>
+                <button
+                  onClick={() => { setEditingPresenterKey('next'); setEditingKey(null) }}
+                  className="shortcut-hint"
+                  style={{
+                    minWidth: '60px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: editingPresenterKey === 'next' ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+                    color: editingPresenterKey === 'next' ? '#fff' : 'var(--text-secondary)',
+                  }}
+                >
+                  {editingPresenterKey === 'next' ? '입력...' : keyCodeToDisplay(settings.presenterKeys.next)}
+                </button>
+              </div>
+              <div className="settings-row" style={{ padding: '6px 0' }}>
+                <span className="settings-label" style={{ fontSize: '12px' }}>이전 (Prev)</span>
+                <button
+                  onClick={() => { setEditingPresenterKey('prev'); setEditingKey(null) }}
+                  className="shortcut-hint"
+                  style={{
+                    minWidth: '60px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: editingPresenterKey === 'prev' ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+                    color: editingPresenterKey === 'prev' ? '#fff' : 'var(--text-secondary)',
+                  }}
+                >
+                  {editingPresenterKey === 'prev' ? '입력...' : keyCodeToDisplay(settings.presenterKeys.prev)}
+                </button>
+              </div>
             </div>
           </section>
 

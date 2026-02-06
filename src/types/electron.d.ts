@@ -14,7 +14,7 @@ export interface Display {
 export interface FileInfo {
   name: string
   path: string
-  type: 'video' | 'image' | 'folder'
+  type: 'video' | 'image' | 'audio' | 'folder'
   size: number
   modified: number
 }
@@ -47,6 +47,19 @@ export interface ElectronAPI {
   stopMediaKeyHelper: () => void
   onMediaKey: (callback: (key: string) => void) => void
   onMediaKeyStatus: (callback: (status: string) => void) => void
+  setPresenterLocked: (locked: boolean) => void
+  setPresenterKeys: (keys: { next: string; prev: string }) => void
+
+  // 개별 탭 윈도우 관리
+  openTabWindow: (tabId: string, tabName: string) => void
+  closeTabWindow: (tabId: string) => void
+  isTabOpen: (tabId: string) => Promise<boolean>
+  toggleTabAlwaysOnTop: (tabId: string) => Promise<boolean>
+  sendTabState: (state: unknown) => void
+  onTabStateUpdate: (callback: (state: unknown) => void) => void
+  sendTabAction: (action: unknown) => void
+  onTabAction: (callback: (action: unknown) => void) => void
+  onTabDocked: (callback: (tabId: string) => void) => void
 }
 
 declare global {

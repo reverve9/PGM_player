@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PlaylistItem, PlayQueueTab, Settings, PlayerState, Shortcuts } from '../types'
+import type { PlaylistItem, PlayQueueTab, Settings, PlayerState, Shortcuts, PresenterKeys } from '../types'
 
 const defaultShortcuts: Shortcuts = {
   playPause: 'Space',
@@ -15,6 +15,11 @@ const defaultShortcuts: Shortcuts = {
   delete: 'Delete',
 }
 
+const defaultPresenterKeys: PresenterKeys = {
+  next: 'ArrowRight',
+  prev: 'ArrowLeft',
+}
+
 const defaultSettings: Settings = {
   autoPlay: false,
   loopMode: 'none',
@@ -23,6 +28,7 @@ const defaultSettings: Settings = {
   standbyImage: null,
   logoImage: null,
   shortcuts: defaultShortcuts,
+  presenterKeys: defaultPresenterKeys,
 }
 
 const createDefaultTab = (): PlayQueueTab => ({
@@ -41,6 +47,16 @@ interface PlayerStore {
   selectedIndex: number      // 현재 탭에서 선택된 항목
   currentTabId: string | null  // PGM에서 재생 중인 탭
   currentIndex: number       // PGM에서 재생 중인 인덱스
+  
+  // Presenter (전역)
+  presenterLocked: boolean  // false = ON(활성), true = OFF(잠금)
+
+  // Audio (독립 채널)
+  audioTabId: string | null
+  audioIndex: number
+  audioIsPlaying: boolean
+  audioCurrentTime: number
+  audioDuration: number
   
   // Browser
   browserPath: string | null
@@ -61,7 +77,10 @@ interface PlayerStore {
   renameTab: (tabId: string, name: string) => void
   duplicateTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
-  setTabInputMode: (tabId: string, mode: 'none' | 'media' | 'presenter') => void
+  setTabInputMode: (tabId: string, mode: 'none' | 'media') => void
+  
+  // Actions - Tabs (순서 변경)
+  reorderTabs: (newTabs: PlayQueueTab[]) => void
   
   // Actions - Playlist (현재 활성 탭에 대해)
   addItems: (items: PlaylistItem[]) => void
@@ -76,6 +95,14 @@ interface PlayerStore {
   
   // Actions - Browser
   setBrowserPath: (path: string | null) => void
+  
+  // Actions - Presenter
+  setPresenterLocked: (locked: boolean) => void
+
+  // Actions - Audio
+  setAudioTabId: (tabId: string | null) => void
+  setAudioIndex: (index: number) => void
+  setAudioState: (state: { isPlaying?: boolean; currentTime?: number; duration?: number }) => void
   
   // Actions - Player State
   setPlayerState: (state: Partial<PlayerState>) => void
@@ -96,6 +123,12 @@ export const usePlayerStore = create<PlayerStore>()(
         selectedIndex: -1,
         currentTabId: null,
         currentIndex: -1,
+        presenterLocked: false,  // 기본 ON (잠금 해제)
+        audioTabId: null,
+        audioIndex: -1,
+        audioIsPlaying: false,
+        audioCurrentTime: 0,
+        audioDuration: 0,
         browserPath: null,
         
         playerState: {
@@ -182,8 +215,9 @@ export const usePlayerStore = create<PlayerStore>()(
         
         setActiveTab: (tabId) => set({
           activeTabId: tabId,
-          selectedIndex: -1,
         }),
+
+        reorderTabs: (newTabs) => set({ tabs: newTabs }),
         
         setTabInputMode: (tabId, mode) => set((state) => ({
           // 같은 모드를 사용하는 다른 탭은 none으로 초기화 (하나만 활성)
@@ -252,15 +286,26 @@ export const usePlayerStore = create<PlayerStore>()(
         })),
         
         // Playback Actions
-        setCurrentIndex: (index) => set((state) => ({
+        setCurrentIndex: (index) => set({
           currentIndex: index,
-          currentTabId: index >= 0 ? state.activeTabId : null,
-        })),
+        }),
         
         setCurrentTabId: (tabId) => set({ currentTabId: tabId }),
         
         // Browser Actions
         setBrowserPath: (path) => set({ browserPath: path }),
+        
+        // Presenter Actions
+        setPresenterLocked: (locked) => set({ presenterLocked: locked }),
+
+        // Audio Actions
+        setAudioTabId: (tabId) => set({ audioTabId: tabId }),
+        setAudioIndex: (index) => set({ audioIndex: index }),
+        setAudioState: (newState) => set((state) => ({
+          audioIsPlaying: newState.isPlaying ?? state.audioIsPlaying,
+          audioCurrentTime: newState.currentTime ?? state.audioCurrentTime,
+          audioDuration: newState.duration ?? state.audioDuration,
+        })),
         
         // Player State Actions
         setPlayerState: (newState) => set((state) => ({
@@ -278,6 +323,7 @@ export const usePlayerStore = create<PlayerStore>()(
       partialize: (state) => ({
         tabs: state.tabs,
         activeTabId: state.activeTabId,
+        presenterLocked: state.presenterLocked,
         browserPath: state.browserPath,
         settings: state.settings,
       }),
@@ -285,6 +331,7 @@ export const usePlayerStore = create<PlayerStore>()(
         const persisted = persistedState as { 
           tabs?: PlayQueueTab[]
           activeTabId?: string
+          presenterLocked?: boolean
           browserPath?: string | null
           settings?: Partial<Settings> 
         }
@@ -301,6 +348,7 @@ export const usePlayerStore = create<PlayerStore>()(
           ...currentState,
           tabs,
           activeTabId,
+          presenterLocked: persisted?.presenterLocked ?? false,
           browserPath: persisted?.browserPath || null,
           settings: {
             ...defaultSettings,
@@ -308,6 +356,10 @@ export const usePlayerStore = create<PlayerStore>()(
             shortcuts: {
               ...defaultShortcuts,
               ...persisted?.settings?.shortcuts,
+            },
+            presenterKeys: {
+              ...defaultPresenterKeys,
+              ...persisted?.settings?.presenterKeys,
             },
           },
         }

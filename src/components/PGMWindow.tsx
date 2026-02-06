@@ -110,8 +110,6 @@ function PGMWindow() {
           const hasCurrentItem = currentItemRef.current !== null
           const duration = fadeDurationRef.current
           
-          console.log('PLAY command received, fade duration:', duration, 'hasCurrentItem:', hasCurrentItem)
-          
           if (hasCurrentItem && duration > 0) {
             // 페이드 아웃 → 전환 → 페이드 인
             isTransitioningRef.current = true
@@ -234,7 +232,6 @@ function PGMWindow() {
           break
 
         case 'SET_FADE_DURATION':
-          console.log('SET_FADE_DURATION:', command.duration)
           fadeDurationRef.current = command.duration
           break
 

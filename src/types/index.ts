@@ -3,15 +3,14 @@ export interface PlaylistItem {
   name: string
   path: string
   duration?: number
-  type: 'file' | 'url' | 'video' | 'image'
-  url?: string // 유튜브 등 URL
+  type: 'video' | 'image' | 'audio'
 }
 
 export interface PlayQueueTab {
   id: string
   name: string
   items: PlaylistItem[]
-  inputMode: 'none' | 'media' | 'presenter'
+  inputMode: 'none' | 'media'
 }
 
 export interface Shortcuts {
@@ -27,6 +26,11 @@ export interface Shortcuts {
   delete: string
 }
 
+export interface PresenterKeys {
+  next: string
+  prev: string
+}
+
 export interface Settings {
   autoPlay: boolean
   loopMode: 'none' | 'loop' | 'shuffle'  // 순환 모드
@@ -35,6 +39,7 @@ export interface Settings {
   standbyImage: string | null
   logoImage: string | null
   shortcuts: Shortcuts
+  presenterKeys: PresenterKeys
 }
 
 export interface PlayerState {
